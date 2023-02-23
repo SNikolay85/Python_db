@@ -14,13 +14,11 @@ def create_db():
                 phone_number INTEGER UNIQUE,
                 id_client INTEGER REFERENCES client(id_client));
             """)
-    conn.commit()
 
 def del_db():
     cur.execute("""
     DROP TABLE client, phone CASCADE
     """)
-    conn.commit()
 
 def add_client(first_name, last_name, mail=None, phone=None):
     cur.execute("""
@@ -41,7 +39,6 @@ def add_client(first_name, last_name, mail=None, phone=None):
                                      FROM client
                                     WHERE first_name = %s AND last_name = %s AND mail = %s));
                 """, (phone, first_name, last_name, mail))
-    conn.commit()
     display()
 
 def delete_client(id_client):
@@ -53,7 +50,6 @@ def delete_client(id_client):
     DELETE FROM client
     WHERE id_client = %s;
     """, (id_client,))
-    conn.commit()
     display()
 
 def add_phone(id_client, phone):
@@ -61,7 +57,6 @@ def add_phone(id_client, phone):
     INSERT INTO phone(phone_number, id_client)
         VALUES(%s, %s);
     """, (phone, id_client))
-    conn.commit()
     display()
 
 def update_phone(id_client, phone_number):
@@ -69,7 +64,6 @@ def update_phone(id_client, phone_number):
     UPDATE phone SET phone_number = %s
     WHERE id_client = %s;
     """, (phone_number, id_client))
-    conn.commit()
     display()
 
 def del_phone(id_client, phone, phone_num):
@@ -77,7 +71,6 @@ def del_phone(id_client, phone, phone_num):
     UPDATE phone SET phone_number = %s
     WHERE id_client = %s AND phone_number = %s;
     """, (phone_num, id_client, phone))
-    conn.commit()
     display()
 
 def delete_phone(id_client, phone):
@@ -85,27 +78,27 @@ def delete_phone(id_client, phone):
    DELETE FROM phone
    WHERE phone_number = %s AND id_client = %s;
    """, (phone, id_client))
-   conn.commit()
    display()
 
-def change_client(id_client, first_name=None, last_name=None, mail=None):
+def change_client(id_client, first_name, last_name, mail):
     cur.execute("""
     UPDATE client SET first_name = %s, last_name = %s, mail = %s
     WHERE id_client = %s;
     """, (first_name, last_name, mail, id_client))
-    conn.commit()
     display()
 
-def find_client(first_name=None, last_name=None, mail=None, phone=None):
-    cur.execute("""
+def find_client(params):
+    string_where = [f"{k} = '{v}'" for k, v  in params.items()]
+    fields = ' AND '.join(string_where)
+    cur.execute(f"""
     SELECT cl.id_client, first_name, last_name, mail, phone_number
     FROM client AS cl
     LEFT JOIN phone AS ph ON ph.id_client = cl.id_client
-    WHERE first_name = %s OR last_name = %s OR mail = %s OR phone_number = %s;
-    """, (first_name, last_name, mail, phone))
+    WHERE {fields};
+    """)
     lst = cur.fetchall()
     lst.insert(0, ('id_client', 'first_name', 'last_name', 'mail', 'phone'))
-    lst.insert(1, ('---------------', '---------------', '---------------', '---------------', '---------------'))
+    lst.insert(1, ('-' * 15, '-' * 15, '-' * 15, '-' * 15, '-' * 15))
     for cl in lst:
         for field in cl:
             text = str(field)
@@ -120,7 +113,7 @@ def display():
         """)
     lst = cur.fetchall()
     lst.insert(0, ('id_client', 'first_name', 'last_name', 'mail', 'phone'))
-    lst.insert(1, ('---------------', '---------------', '---------------', '---------------', '---------------'))
+    lst.insert(1, ('-' * 15, '-' * 15, '-' * 15, '-' * 15, '-' * 15))
     for cl in lst:
         for field in cl:
             text = str(field)
@@ -309,35 +302,44 @@ def client_managment():
                 if int(id_client) not in data_7:
                     print('Введен не существующий ID')
                 else:
+                    cur.execute("""
+                    SELECT first_name, last_name, mail FROM client
+                    WHERE id_client = %s;
+                    """, (id_client,))
+                    tup = cur.fetchall()
                     print('Введи данные, для изменения: ')
                     f_n = input('Введи имя: ')
                     l_n = input('Введи фамилию: ')
                     m = input('Введи адрес эл. почты: ')
                     if f_n == '':
-                        f_n = None
+                        f_n = tup[0][0]
                     if l_n == '':
-                        l_n = None
+                        l_n = tup[0][1]
                     if m == '':
-                        m = None
+                        m = tup[0][2]
                     change_client(id_client, f_n, l_n, m)
                     break
             print()
         elif comand == '8':
             print()
+            dict_params = {}
             print('Введи данные, для поиска: ')
             f_n = input('Введи имя(необязательно): ')
             l_n = input('Введи фамилию(необязательно): ')
             m = input('Введи адрес эл. почты(необязательно): ')
             p_number = digit()
-            if f_n == '':
-                f_n = None
-            if l_n == '':
-                l_n = None
-            if m == '':
-                m = None
-            if p_number == '':
-                p_number = None
-            find_client(f_n, l_n, m, p_number)
+            if f_n != '':
+                dict_params['first_name'] = f_n
+            if l_n != '':
+                dict_params['last_name'] = l_n
+            if m != '':
+                dict_params['mail'] = m
+            if p_number != '':
+                dict_params['phone_number'] = p_number
+            if dict_params == {}:
+                print('Не внесены данные для поиска')
+            else:
+                find_client(dict_params)
             print()
         elif comand == '9':
             print()
@@ -345,12 +347,12 @@ def client_managment():
             print()
         elif comand == 'q':
             break
+if __name__ == '__main__':
+    with open('D:\Python\pas.txt', encoding='utf-8') as file:
+        pas = file.read()
 
-with open('D:\Python\pas.txt', encoding='utf-8') as file:
-    pas = file.read()
+    with psycopg2.connect(database='clients', user='postgres', password=pas) as conn:
+        with conn.cursor() as cur:
+            client_managment()
 
-with psycopg2.connect(database='clients', user='postgres', password=pas) as conn:
-    with conn.cursor() as cur:
-        client_managment()
-
-
+    conn.close()
